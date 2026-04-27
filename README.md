@@ -1,7 +1,7 @@
 # Case-opener
 A case opener game similar to the one inside of Counter Strike.
 
-##Velocity/friction function:
+## Velocity/friction function:
 
 ```
       let pos = 0;
