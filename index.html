@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Simulador de Cajas</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: radial-gradient(circle, #1a1a1a, #0d0d0d); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; overflow: hidden; position: relative; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 10px 30px; background: #111; box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 2; }
+    header h1 { font-size: 28px; color: #ffa500; margin: 0; }
+    nav { display: flex; gap: 10px; }
+    .rarity-bar { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; background: rgba(0, 0, 0, 0.6); padding: 6px 10px; border-radius: 8px; }
+    .rarity-bar .rarity { padding: 6px 12px; font-weight: bold; border-radius: 4px; font-size: 14px; }
+    .common { background: #777; } .rare { background: #3366ff; } .epic { background: #9933cc; } .legendary { background: #ff9900; } .ultra { background: #cc0000; }
+    main { height: calc(100vh - 60px); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; z-index: 2; }
+    #carousel { width: 700px; height: 100px; overflow: hidden; position: relative; background: #222; border: 3px solid #fff; border-radius: 10px; margin: 0; box-shadow: 0 0 15px rgba(255,255,255,0.1); z-index: 2; }
+    .items { display: flex; will-change: transform; }
+    .item { width: 100px; height: 100px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; box-sizing: border-box; border: 4px solid; border-radius: 8px; margin: 0 1px; overflow: hidden; position: relative; }
+    .item img { width: 90%; height: 90%; object-fit: contain; }
+    #center-line { position: absolute; top: 0; bottom: 0; left: calc(50% - 1.5px); width: 3px; background: gold; z-index: 10; }
+    #itemName { margin-top: 10px; font-size: 20px; color: #fff; height: 24px; }
+    #openButton { margin-top: 20px; padding: 15px 40px; font-size: 22px; font-weight: bold; cursor: pointer; border: none; border-radius: 10px; background: linear-gradient(135deg, #ff9900, #ff3300); color: white; transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s; box-shadow: 0 0 10px rgba(255, 153, 0, 0.5); z-index: 2; }
+    #result { margin-top: 60px; font-size: 20px; font-weight: bold; padding: 10px 20px; border-radius: 12px; box-shadow: 0 0 25px rgba(255,255,255,0.5); opacity: 0; transform: scale(0.8); transition: opacity 0.5s ease, transform 0.5s ease; background-color: #333; color: white; position: relative; min-height: 30px; }
+    #result.show { animation: fadeInResult 0.5s ease forwards, fadeOutResult 2s ease 1.5s forwards; }
+    @keyframes fadeInResult { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1.2); } }
+    @keyframes fadeOutResult { to { opacity: 0; transform: scale(0.8); } }
+    .confetti { position: absolute; width: 10px; height: 10px; background-color: gold; animation: confettiFall 2s linear forwards; opacity: 0.8; z-index: 3; }
+    @keyframes confettiFall { to { transform: translateY(100vh) rotate(360deg); opacity: 0; } }
+    #statsPanel { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 10px; font-size: 14px; z-index: 3; color: #fff; max-height: 400px; overflow-y: auto; display: none; }
+    .stat-item { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Simulador de Cajas</h1>
+    <nav>
+      <button class="btn btn-sm btn-outline-light" onclick="toggleStats()">📜 Mostrar/Ocultar Inventario</button>
+      <button class="btn btn-sm btn-outline-danger" onclick="clearStats()">🗑 Borrar Inventario</button>
+    </nav>
+  </header>
+  <main>
+    <audio id="tickSound" src="sound/casetick.mp3"></audio>
+    <audio id="endSound" src="sound/stop.mp3"></audio>
+    <audio id="ultraSound" src="sound/ohnePixel.mp3"></audio>
+
+    <div id="carousel">
+      <div id="items" class="items"></div>
+      <div id="center-line"></div>
+    </div>
+    <div id="itemName"></div>
+    <button id="openButton" onclick="openCase()">🏱 ボックスを開ける</button>
+    <h2 id="result"></h2>
+    <div id="statsPanel"></div>
+  </main>
+
+  <div class="rarity-bar">
+    <div class="rarity common">Común (60%)</div>
+    <div class="rarity rare">Raro (25%)</div>
+    <div class="rarity epic">Épico (10%)</div>
+    <div class="rarity legendary">Legendario (4%)</div>
+    <div class="rarity ultra">Ultra Raro (1%)</div>
+  </div>
+
+  <script>
+    const allItems = [
+      { name: 'Walter', rarity: 'common', image: 'img/common1.png' },
+      { name: 'El taser', rarity: 'common', image: 'img/common2.png' },
+      { name: 'Smol Gura', rarity: 'rare', image: 'img/rare1.png' },
+      { name: 'Shirakami', rarity: 'rare', image: 'img/rare2.gif' },
+      { name: 'Kumarin', rarity: 'epic', image: 'img/epic1.png' },
+      { name: 'Kuro Sama', rarity: 'legendary', image: 'img/legendary1.gif' },
+      { name: 'Bondiola', rarity: 'ultra', image: 'img/ultra1.png' }
+    ];
+
+    const rarityMap = {
+      common: { color: '#777', chance: 0.6 },
+      rare: { color: '#3366ff', chance: 0.25 },
+      epic: { color: '#9933cc', chance: 0.1 },
+      legendary: { color: '#ff9900', chance: 0.04 },
+      ultra: { color: '#cc0000', chance: 0.01 }
+    };
+
+    const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'ultra'];
+
+    let rolling = false;
+    let stats = JSON.parse(localStorage.getItem('stats')) || {};
+
+    function saveStats() {
+      localStorage.setItem('stats', JSON.stringify(stats));
+    }
+
+    function clearStats() {
+      stats = {};
+      saveStats();
+      updateStatsPanel();
+    }
+
+    function toggleStats() {
+      const panel = document.getElementById("statsPanel");
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function getRandomItem() {
+      let r = Math.random();
+      let sum = 0;
+      for (let key in rarityMap) {
+        sum += rarityMap[key].chance;
+        if (r <= sum) {
+          const filtered = allItems.filter(i => i.rarity === key);
+          return filtered[Math.floor(Math.random() * filtered.length)];
+        }
+      }
+      return allItems[0];
+    }
+
+    function openCase() {
+      if (rolling) return;
+      rolling = true;
+      const btn = document.getElementById('openButton');
+      const itemsContainer = document.getElementById('items');
+      const resultBox = document.getElementById('result');
+      const nameBox = document.getElementById('itemName');
+      const tickSound = document.getElementById('tickSound');
+
+      btn.disabled = true;
+      itemsContainer.innerHTML = '';
+      resultBox.className = '';
+      resultBox.style.opacity = 0;
+
+      const pool = [];
+      const totalItems = 700;
+      for (let i = 0; i < totalItems; i++) {
+        const item = getRandomItem();
+        const div = document.createElement('div');
+        div.className = `item ${item.rarity}`;
+        div.style.borderColor = rarityMap[item.rarity].color;
+        const img = document.createElement('img');
+        img.src = item.image;
+        img.alt = item.name;
+        div.appendChild(img);
+        pool.push({ div, data: item });
+        itemsContainer.appendChild(div);
+      }
+
+      let pos = 0;
+      let velocity = 60;
+      const friction = 0.9922;
+      let lastIndex = -1;
+
+      function playTick() {
+        const tick = tickSound.cloneNode();
+        tick.volume = 0.4;
+        tick.play();
+      }
+
+      function animate() {
+        pos += velocity;
+        velocity *= friction;
+        itemsContainer.style.transform = `translateX(${-pos}px)`;
+
+        const itemWidth = 102;
+        const index = Math.round((pos + 700 / 2 - itemWidth / 2) / itemWidth);
+        const item = pool[Math.min(index, pool.length - 1)].data;
+        nameBox.textContent = item.name;
+        nameBox.style.color = rarityMap[item.rarity].color;
+
+        if (index !== lastIndex) {
+          playTick();
+          lastIndex = index;
+        }
+
+        if (velocity > 0.5) {
+          requestAnimationFrame(animate);
+        } else {
+          const result = item;
+          nameBox.textContent = result.name;
+          nameBox.style.color = rarityMap[result.rarity].color;
+          resultBox.textContent = `¡Obtuviste: ${result.name}!`;
+          resultBox.style.backgroundColor = rarityMap[result.rarity].color;
+          resultBox.className = 'show';
+
+          if (!stats[result.name]) stats[result.name] = 0;
+          stats[result.name]++;
+
+          document.getElementById("endSound").play();
+          if (result.rarity === 'ultra') {
+            document.getElementById("ultraSound").play();
+          }
+
+          saveStats();
+          updateStatsPanel();
+
+          setTimeout(() => {
+            btn.disabled = false;
+            rolling = false;
+          }, 2500);
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function updateStatsPanel() {
+      const panel = document.getElementById("statsPanel");
+      let html = '<strong>Inventario:</strong><br>';
+      rarityOrder.forEach(rarity => {
+        const entries = Object.entries(stats)
+          .map(([name, count]) => {
+            const item = allItems.find(i => i.name === name);
+            return { name, count, rarity: item?.rarity || 'common' };
+          })
+          .filter(item => item.rarity === rarity)
+          .sort((a, b) => b.count - a.count);
+        if (entries.length) {
+          html += `<div style="color:${rarityMap[rarity].color}; margin-top:8px"><u>${rarity.toUpperCase()}</u></div>`;
+          entries.forEach(entry => {
+            html += `<div class="stat-item" style="color:${rarityMap[entry.rarity].color}">${entry.name}: ${entry.count}</div>`;
+          });
+        }
+      });
+      panel.innerHTML = html;
+    }
+
+    updateStatsPanel();
+  </script>
+</body>
+
+</html>
